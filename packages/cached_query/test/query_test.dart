@@ -187,7 +187,7 @@ void main() {
       query.stream.listen(
         expectAsync1(
           (event) {
-            if (i == 3) {
+            if (i == 4) {
               expect(firstQuery, isNotNull);
               expect(firstQuery?.timeCreated, isNot(event.timeCreated));
             }
@@ -195,7 +195,7 @@ void main() {
             firstQuery = event;
             i++;
           },
-          max: 4,
+          count: 5,
         ),
       );
       await query.refetch();

@@ -74,6 +74,7 @@ final class QueryController<T> {
   final Object unencodedKey;
 
   bool _invalidated = false;
+  int _invalidationCount = 0;
   bool _disposed = false;
 
   bool isInvalidated() {
@@ -162,6 +163,7 @@ final class QueryController<T> {
 
   void markAsStale() {
     _invalidated = true;
+    _invalidationCount++;
   }
 
   Future<void> invalidate({
@@ -171,6 +173,16 @@ final class QueryController<T> {
   }) async {
     markAsStale();
     if ((isActive && refetchActive) || refetchInactive) {
+      // A fetch that is already running may have read data from before the
+      // invalidation, so wait for it to finish and then fetch again.
+      final inFlight = _currentFuture;
+      if (inFlight != null) {
+        try {
+          await inFlight;
+        } catch (_) {
+          // The caller that started the fetch receives its error.
+        }
+      }
       return fetch(options: options);
     }
 
@@ -256,6 +268,7 @@ final class QueryController<T> {
 
     if ((stale || ignoreStale) && shouldContinue) {
       final isInitialFetch = stateNotifier.value.data.isNone;
+      final invalidationCountAtStart = _invalidationCount;
       int attempt = 0;
       while (true) {
         if (_disposed) break;
@@ -264,7 +277,9 @@ final class QueryController<T> {
             options: options,
             state: stateNotifier.value.data.valueOrNull,
           );
-          _invalidated = false;
+          if (_invalidationCount == invalidationCountAtStart) {
+            _invalidated = false;
+          }
           stateNotifier.add(
             Success(data: Some(res), timeCreated: DateTime.now()),
           );
